@@ -155,6 +155,39 @@ class LogicTest {
     }
 
     @Test
+    fun parsesGoogleResponse() {
+        val body = """[[["Привет. ","Hello. ",null,null,10],["Как \"дела\"?\nХорошо 7301.","How are you?",null,null,3,null,null,[[]],[[["x"]]]]],null,"en",null,null,null,1,[],[["en"],null,[1],["en"]]]"""
+        assertEquals("Привет. Как \"дела\"?\nХорошо 7301.", GoogleApi.parse(body))
+        assertEquals("", GoogleApi.parse("""[null,null,"en"]"""))
+        assertEquals("aé", GoogleApi.parse("""[[["aé",null]],,"en"]"""))
+        assertEquals(null, GoogleApi.parse("<html>Error 429</html>"))
+        assertEquals(null, GoogleApi.parse("""{"error":1}"""))
+    }
+
+    @Test
+    fun miniJson() {
+        assertEquals(listOf(1.0, null, "x", true, mapOf("k" to listOf(-2.5e1))), MiniJson.parse("""[1,null,"x",true,{"k":[-2.5e1]}]"""))
+        assertEquals(listOf(null, 2.0), MiniJson.parse("[,2]"))
+        assertEquals(emptyList<Any?>(), MiniJson.parse(" [ ] "))
+    }
+
+    @Test
+    fun googleUrlAndChunks() {
+        val url = GoogleApi.url("Hi & bye?", SourceLang.ZH)
+        assertTrue(url.contains("sl=zh-CN&tl=ru"))
+        assertTrue(url.endsWith("q=Hi+%26+bye%3F"))
+
+        assertEquals(listOf("short"), GoogleApi.chunks("short", 500))
+        val text = "First sentence here. Second one is a bit longer! Third? And the final words go here"
+        val parts = GoogleApi.chunks(text, 30)
+        assertTrue(parts.all { it.length <= 30 })
+        assertEquals(text.replace(" ", ""), parts.joinToString("").replace(" ", ""))
+        assertEquals("First sentence here.", parts[0])
+        val cjk = "あ".repeat(70)
+        assertEquals(listOf(30, 30, 10), GoogleApi.chunks(cjk, 30).map { it.length })
+    }
+
+    @Test
     fun normRect() {
         val r = NormRect.of(Box(0, 800, 2400, 1080), 2400, 1080)
         assertEquals(r, NormRect.decode(r.encode()))

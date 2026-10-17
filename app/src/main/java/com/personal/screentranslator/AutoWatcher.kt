@@ -5,6 +5,9 @@ import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -117,7 +120,9 @@ class AutoWatcher(private val host: Host) {
                 if (!force && text == lastText) continue
                 lastText = text
 
-                val translated = segments.map { host.translate(it.text) }.joinToString("\n")
+                val translated = coroutineScope {
+                    segments.map { async { host.translate(it.text) } }.awaitAll()
+                }.joinToString("\n")
                 host.showPanel(translated, region, full.width, full.height)
             } catch (e: MissingModelException) {
                 host.onFatal(e.message ?: "Нет языкового пакета")

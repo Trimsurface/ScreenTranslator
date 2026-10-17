@@ -13,7 +13,10 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,7 +63,7 @@ class TranslatorAccessibilityService : AccessibilityService() {
                 ?.substringBefore('/')?.let { add(it) }
         }
 
-        overlay = OverlayRenderer(this, wm).also { it.attach() }
+        overlay = OverlayRenderer(this, wm) { settings.dismissOnTouch }.also { it.attach() }
         menu = FloatingMenu(this, wm) {}
         selector = RegionSelector(this, wm)
         button = FloatingButton(this, wm, buttonCallbacks).also { it.attach(settings.buttonX, settings.buttonY) }
@@ -121,11 +124,6 @@ class TranslatorAccessibilityService : AccessibilityService() {
 
         override fun onLongPress() = showMenu()
 
-        override fun onOutsideTouch() {
-            if (auto?.isRunning == true) return
-            if (settings.dismissOnTouch && overlay?.kind == OverlayView.Kind.BUBBLES) overlay?.clear()
-        }
-
         override fun onMoved(x: Int, y: Int) {
             app.appScope.launch { app.prefs.setButtonPosition(x, y) }
         }
@@ -139,6 +137,7 @@ class TranslatorAccessibilityService : AccessibilityService() {
         val autoOn = auto?.isRunning == true
         val items = buildList {
             add(FloatingMenu.Item("Язык: ${s.sourceLang.title}") { cycleLanguage() })
+            add(FloatingMenu.Item(if (s.onlineMode) "Перевод: онлайн (Google)" else "Перевод: офлайн") { toggleOnline() })
             add(FloatingMenu.Item(if (hasRegion) "Изменить область" else "Выбрать область") { selectRegion(startAutoAfter = false) })
             if (hasRegion) add(FloatingMenu.Item("Сбросить область (весь экран)") { setRegion(null) })
             add(FloatingMenu.Item(if (autoOn) "Авто-режим: выключить" else "Авто-режим: включить") {
@@ -155,6 +154,13 @@ class TranslatorAccessibilityService : AccessibilityService() {
         val next = all[(all.indexOf(settings.sourceLang) + 1) % all.size]
         app.appScope.launch { app.prefs.setSourceLang(next) }
         toast("Язык оригинала: ${next.title}", force = true)
+        auto?.requestNow()
+    }
+
+    private fun toggleOnline() {
+        val online = !settings.onlineMode
+        app.appScope.launch { app.prefs.setOnlineMode(online) }
+        toast(if (online) "Онлайн-перевод (Google). Без интернета — офлайн" else "Офлайн-перевод на телефоне", force = true)
         auto?.requestNow()
     }
 
@@ -220,12 +226,18 @@ class TranslatorAccessibilityService : AccessibilityService() {
                 ov.showDebug(segments, full.width, full.height)
                 return
             }
-            val items = segments.map { it to pipeline.translate(it.text, s.sourceLang) }
+            val items = coroutineScope {
+                segments.map { seg -> async { seg to pipeline.translate(seg.text, s.sourceLang) } }.awaitAll()
+            }
             ov.showBubbles(items, full.width, full.height)
+            pipeline.takeNotice()?.let { toast(it, force = true) }
         } catch (e: CaptureException) {
             toast(e.userMessage, force = true)
         } catch (e: MissingModelException) {
             toast("${e.message}. Скачайте его в настройках.", force = true)
+        } catch (e: NoInternetException) {
+            pipeline.takeNotice()
+            toast(e.message ?: "Нет интернета", force = true)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -309,7 +321,11 @@ class TranslatorAccessibilityService : AccessibilityService() {
         override suspend fun recognize(crop: Bitmap, dx: Int, dy: Int) =
             pipeline.recognize(crop, dx, dy, settings.sourceLang)
 
-        override suspend fun translate(text: String) = pipeline.translate(text, settings.sourceLang)
+        override suspend fun translate(text: String): String = try {
+            pipeline.translate(text, settings.sourceLang)
+        } finally {
+            pipeline.takeNotice()?.let { toast(it, force = true) }
+        }
 
         override fun showPanel(text: String, region: Box, screenW: Int, screenH: Int) {
             val s = settings

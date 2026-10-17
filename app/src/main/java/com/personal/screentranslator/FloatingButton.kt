@@ -27,8 +27,6 @@ class FloatingButton(
     interface Callbacks {
         fun onTap()
         fun onLongPress()
-        /** Касание где угодно вне кнопки (в игре) — чтобы убрать перевод. */
-        fun onOutsideTouch()
         fun onMoved(x: Int, y: Int)
     }
 
@@ -36,7 +34,7 @@ class FloatingButton(
 
     private val size = context.dpi(52f)
     val view = ButtonView(context)
-    private val params = overlayParams(size, size, touchable = true, watchOutside = true)
+    private val params = overlayParams(size, size, touchable = true)
     private val handler = Handler(Looper.getMainLooper())
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
     private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
@@ -94,10 +92,6 @@ class FloatingButton(
     @SuppressLint("ClickableViewAccessibility")
     private val touchListener = View.OnTouchListener { _, e ->
         when (e.actionMasked) {
-            MotionEvent.ACTION_OUTSIDE -> {
-                callbacks.onOutsideTouch()
-                true
-            }
             MotionEvent.ACTION_DOWN -> {
                 downRawX = e.rawX
                 downRawY = e.rawY

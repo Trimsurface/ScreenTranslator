@@ -85,13 +85,14 @@ fun SettingsScreen(resumeTick: Int) {
         ) {
             Text("ScreenTranslator", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "Перевод экрана на русский прямо на телефоне, без интернета",
+                "Перевод экрана на русский: онлайн через Google Переводчик или офлайн прямо на телефоне",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
             ServiceSection(serviceEnabled, running)
             BatterySection(batteryOk)
+            EngineSection(app, settings, scope)
             LanguageSection(app, settings, resumeTick, scope)
             AutoSection(app, settings, scope)
             BehaviorSection(app, settings, scope)
@@ -100,8 +101,8 @@ fun SettingsScreen(resumeTick: Int) {
             HowToSection()
 
             Text(
-                "Распознавание и перевод — Google ML Kit. Перевод выполняется на устройстве " +
-                    "моделями Google Translate.",
+                "Распознавание текста — Google ML Kit, на устройстве. Перевод — онлайн через " +
+                    "Google Переводчик или офлайн моделями ML Kit.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -174,6 +175,28 @@ private fun BatterySection(ok: Boolean) {
 }
 
 @Composable
+private fun EngineSection(app: App, settings: Settings, scope: CoroutineScope) {
+    Section("Перевод") {
+        RadioRow("Онлайн — Google Переводчик", selected = settings.onlineMode) {
+            scope.launch { app.prefs.setOnlineMode(true) }
+        }
+        RadioRow("Офлайн — на телефоне, без интернета", selected = !settings.onlineMode) {
+            scope.launch { app.prefs.setOnlineMode(false) }
+        }
+        Hint(
+            if (settings.onlineMode) {
+                "Качество заметно лучше. Нужен интернет: распознанный текст отправляется в Google. " +
+                    "Если интернета нет, перевод сам переключится на офлайн — для этого нужны " +
+                    "скачанные языковые пакеты ниже."
+            } else {
+                "Работает без интернета, но качество проще. Нужны языковые пакеты ниже."
+            }
+        )
+        Hint("Переключать можно и прямо в игре: долгий тап по кнопке → «Перевод: …».")
+    }
+}
+
+@Composable
 private fun LanguageSection(app: App, settings: Settings, resumeTick: Int, scope: CoroutineScope) {
     var downloaded by remember { mutableStateOf<Set<String>?>(null) }
     var busy by remember { mutableStateOf<String?>(null) }
@@ -198,8 +221,11 @@ private fun LanguageSection(app: App, settings: Settings, resumeTick: Int, scope
             }
         }
         HorizontalDivider()
-        Text("Языковые пакеты перевода", style = MaterialTheme.typography.labelLarge)
-        Hint("~30 МБ каждый. Интернет нужен один раз — для скачивания.")
+        Text("Языковые пакеты для офлайн-перевода", style = MaterialTheme.typography.labelLarge)
+        Hint(
+            "~30 МБ каждый. Интернет нужен один раз — для скачивания." +
+                if (settings.onlineMode) " В онлайн-режиме пакеты нужны только на случай, когда нет интернета." else ""
+        )
 
         LanguagePacks.ALL.forEach { code ->
             val isDl = downloaded?.contains(code) == true
@@ -211,11 +237,12 @@ private fun LanguageSection(app: App, settings: Settings, resumeTick: Int, scope
                         when {
                             downloaded == null -> "проверяю…"
                             isDl -> "скачан"
+                            isNeeded && settings.onlineMode -> "не скачан — нужен для перевода без интернета"
                             isNeeded -> "нужен — не скачан"
                             else -> "не скачан"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (!isDl && isNeeded && downloaded != null) MaterialTheme.colorScheme.error
+                        color = if (!isDl && isNeeded && downloaded != null && !settings.onlineMode) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -289,9 +316,13 @@ private fun AutoSection(app: App, settings: Settings, scope: CoroutineScope) {
 @Composable
 private fun BehaviorSection(app: App, settings: Settings, scope: CoroutineScope) {
     Section("Поведение") {
-        SwitchRow("Убирать перевод при касании экрана", settings.dismissOnTouch) {
+        SwitchRow("Убирать перевод касанием в любом месте экрана", settings.dismissOnTouch) {
             scope.launch { app.prefs.setDismissOnTouch(it) }
         }
+        Hint(
+            "Это касание до игры не доходит — можно спокойно перечитать оригинал, игра не пролистнётся. " +
+                "Если выключить — перевод убирается только тапом по кнопке. В авто-режиме касания всегда идут в игру."
+        )
         SwitchRow("Режим проверки: только рамки распознанного текста", settings.debugBoxes) {
             scope.launch { app.prefs.setDebugBoxes(it) }
         }
@@ -342,8 +373,9 @@ private fun CacheSection(app: App, resumeTick: Int) {
 private fun HowToSection() {
     Section("Как пользоваться") {
         Hint(
-            "• Тап по кнопке — перевести экран. Ещё тап или касание игры — убрать перевод.\n" +
-                "• Долгий тап — меню: язык, область, авто-режим.\n" +
+            "• Тап по кнопке — перевести экран. Ещё тап по кнопке или в любом месте экрана — убрать " +
+                "перевод (игра это касание не получит).\n" +
+                "• Долгий тап — меню: язык, онлайн/офлайн, область, авто-режим.\n" +
                 "• Для новеллы: «Выбрать область» → обведите окно диалога → «Авто-режим: включить».\n" +
                 "• Кнопку можно перетаскивать."
         )

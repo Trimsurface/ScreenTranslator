@@ -9,7 +9,7 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 import kotlinx.coroutines.tasks.await
 import com.google.mlkit.nl.translate.Translator as MlTranslator
 
-/** Переводчик. Интерфейс — чтобы позже можно было подключить онлайн-ИИ без переделки. */
+/** Переводчик: офлайн (MlKitTranslator) или онлайн (GoogleTranslator). */
 interface Translator {
     suspend fun translate(text: String, source: SourceLang): String
 

@@ -1,5 +1,6 @@
 package com.personal.screentranslator
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
@@ -8,6 +9,7 @@ import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextPaint
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -16,14 +18,37 @@ import kotlin.math.min
 
 /**
  * Прозрачное окно на весь экран, в котором рисуются плашки перевода.
- * Касания проходят сквозь него в игру.
+ *
+ * Обычно касания проходят сквозь него в игру. Но пока показаны плашки ручного перевода
+ * (и включено «убирать касанием»), окно само ловит касание в любом месте экрана:
+ * перевод исчезает, а игра это касание не получает — можно спокойно перечитать оригинал.
+ * Панель авто-режима касания не ловит никогда.
  */
-class OverlayRenderer(private val context: Context, private val wm: WindowManager) {
+class OverlayRenderer(
+    private val context: Context,
+    private val wm: WindowManager,
+    private val dismissOnTouch: () -> Boolean,
+) {
 
     val view = OverlayView(context)
+    private val params = overlayParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, touchable = false)
+    private var touchable = false
+    /** Палец ещё на экране после касания, убравшего перевод: до отпускания жест наш. */
+    private var gestureActive = false
+
+    init {
+        view.onTouchDown = {
+            gestureActive = true
+            view.clear() // окно не трогаем до конца жеста — остаток касания тоже не уйдёт в игру
+        }
+        view.onTouchEnd = {
+            gestureActive = false
+            syncTouchable()
+        }
+    }
 
     fun attach() {
-        wm.addSafely(view, overlayParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT, touchable = false))
+        wm.addSafely(view, params)
     }
 
     fun detach() = wm.removeSafely(view)
@@ -33,16 +58,38 @@ class OverlayRenderer(private val context: Context, private val wm: WindowManage
 
     fun intersects(area: Box) = view.contentBoxes().any { it.intersects(area) }
 
-    fun clear() = view.clear()
+    fun clear() {
+        view.clear()
+        syncTouchable()
+    }
 
-    fun showBubbles(items: List<Pair<Segment, String>>, screenW: Int, screenH: Int) =
+    fun showBubbles(items: List<Pair<Segment, String>>, screenW: Int, screenH: Int) {
         view.showBubbles(items, screenW, screenH)
+        syncTouchable()
+    }
 
-    fun showDebug(segments: List<Segment>, screenW: Int, screenH: Int) =
+    fun showDebug(segments: List<Segment>, screenW: Int, screenH: Int) {
         view.showDebug(segments, screenW, screenH)
+        syncTouchable()
+    }
 
-    fun showPanel(text: String, region: Box, position: PanelPosition, textSp: Int, screenW: Int, screenH: Int) =
+    fun showPanel(text: String, region: Box, position: PanelPosition, textSp: Int, screenW: Int, screenH: Int) {
         view.showPanel(text, region, position, textSp, screenW, screenH)
+        syncTouchable()
+    }
+
+    private fun syncTouchable() {
+        val manualShown = view.kind == OverlayView.Kind.BUBBLES || view.kind == OverlayView.Kind.DEBUG
+        val want = gestureActive || (manualShown && dismissOnTouch())
+        if (want == touchable) return
+        touchable = want
+        params.flags = if (want) {
+            params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        } else {
+            params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        }
+        if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, params) }
+    }
 }
 
 class OverlayView(context: Context) : View(context) {
@@ -55,6 +102,19 @@ class OverlayView(context: Context) : View(context) {
         private set
     private var placed: List<Placed> = emptyList()
     private val loc = IntArray(2)
+
+    /** Касания приходят сюда, только когда окно сделано «касаемым» (см. OverlayRenderer). */
+    var onTouchDown: (() -> Unit)? = null
+    var onTouchEnd: (() -> Unit)? = null
+
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> onTouchDown?.invoke()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onTouchEnd?.invoke()
+        }
+        return true // касание съедено — до игры не доходит
+    }
 
     private val ctx = context
     private val radius = ctx.dp(6f)

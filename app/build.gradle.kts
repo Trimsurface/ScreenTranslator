@@ -12,8 +12,8 @@ android {
         applicationId = "com.personal.screentranslator"
         minSdk = 30 // AccessibilityService.takeScreenshot()
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
 
         // Почти все телефоны с Android 11+ — arm64; v7a оставлен на всякий случай.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }

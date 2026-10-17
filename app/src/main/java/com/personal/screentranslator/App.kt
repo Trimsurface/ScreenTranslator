@@ -25,7 +25,10 @@ class App : Application() {
     val dictionary = UserDictionary()
     lateinit var cache: TranslationCache
         private set
+    /** Офлайн-перевод на телефоне (ML Kit). */
     val translator: Translator by lazy { MlKitTranslator() }
+    /** Онлайн-перевод (Google Переводчик без ключа). */
+    val onlineTranslator: Translator by lazy { GoogleTranslator() }
 
     private val dictionaryFile get() = File(filesDir, "dictionary.txt")
 

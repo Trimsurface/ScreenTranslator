@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -16,6 +18,13 @@ object SystemChecks {
         ) ?: return false
         val me = ComponentName(context, TranslatorAccessibilityService::class.java)
         return enabled.split(':').any { ComponentName.unflattenFromString(it) == me }
+    }
+
+    /** Есть ли подключение к сети (Wi-Fi или мобильный интернет). */
+    fun hasInternet(context: Context): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java) ?: return true
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     fun isIgnoringBattery(context: Context): Boolean =

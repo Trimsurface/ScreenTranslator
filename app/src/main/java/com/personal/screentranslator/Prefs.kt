@@ -34,6 +34,8 @@ enum class SourceLang(val code: String, val title: String, val cjk: Boolean) {
 
 data class Settings(
     val sourceLang: SourceLang = SourceLang.EN,
+    /** true — Google Переводчик через интернет, false — ML Kit на телефоне. */
+    val onlineMode: Boolean = true,
     val autoIntervalMs: Int = 1000,
     val panelPosition: PanelPosition = PanelPosition.ABOVE,
     val panelTextSp: Int = 16,
@@ -55,6 +57,7 @@ class Prefs(context: Context) {
 
     private object K {
         val SOURCE = stringPreferencesKey("source_lang")
+        val ONLINE = booleanPreferencesKey("online_mode")
         val INTERVAL = intPreferencesKey("auto_interval_ms")
         val PANEL_POS = stringPreferencesKey("panel_position")
         val PANEL_SP = intPreferencesKey("panel_text_sp")
@@ -71,6 +74,7 @@ class Prefs(context: Context) {
         .map { p ->
             Settings(
                 sourceLang = SourceLang.of(p[K.SOURCE]),
+                onlineMode = p[K.ONLINE] ?: true,
                 autoIntervalMs = p[K.INTERVAL] ?: 1000,
                 panelPosition = PanelPosition.entries.firstOrNull { it.name == p[K.PANEL_POS] } ?: PanelPosition.ABOVE,
                 panelTextSp = p[K.PANEL_SP] ?: 16,
@@ -84,6 +88,7 @@ class Prefs(context: Context) {
         }
 
     suspend fun setSourceLang(v: SourceLang) = store.edit { it[K.SOURCE] = v.code }
+    suspend fun setOnlineMode(v: Boolean) = store.edit { it[K.ONLINE] = v }
     suspend fun setAutoInterval(ms: Int) = store.edit { it[K.INTERVAL] = ms }
     suspend fun setPanelPosition(v: PanelPosition) = store.edit { it[K.PANEL_POS] = v.name }
     suspend fun setPanelTextSp(v: Int) = store.edit { it[K.PANEL_SP] = v }
