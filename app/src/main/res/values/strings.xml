@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ScreenTranslator</string>
+    <string name="a11y_label">ScreenTranslator — переводчик экрана</string>
+    <string name="a11y_description">Показывает плавающую кнопку поверх приложений. По нажатию снимает экран, распознаёт текст и переводит его на русский прямо на телефоне, без интернета. Содержимое окон не читается и никуда не отправляется.</string>
+</resources>

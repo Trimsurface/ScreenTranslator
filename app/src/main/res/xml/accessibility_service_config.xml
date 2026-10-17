@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Минимум прав: содержимое окон не читаем, только снимаем экран.
+  События смены окна нужны, чтобы убирать перевод и ставить авто-режим
+  на паузу, когда уходишь из игры.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault"
+    android:canRetrieveWindowContent="false"
+    android:canTakeScreenshot="true"
+    android:description="@string/a11y_description"
+    android:notificationTimeout="300"
+    android:settingsActivity="com.personal.screentranslator.MainActivity" />
